@@ -68,13 +68,8 @@ function onScan(text) {
   lastTime = now;
 
   text = text.trim();
-  const onlyDigits = /^[0-9]+$/.test(text);
 
   if (!purseCode) {
-    if (!onlyDigits) {
-      statusEl.textContent = "এটা পার্সের কোড না, শুধু সংখ্যার কোড স্ক্যান করুন";
-      return;
-    }
     statusEl.textContent = "";
     purseCode = text;
     purseEl.textContent = text;
@@ -82,10 +77,6 @@ function onScan(text) {
     beep();
   } else if (!uniqueCode) {
     if (text === purseCode) return;
-    if (onlyDigits) {
-      statusEl.textContent = "এটা ইউনিক কোড না, অক্ষর আর সংখ্যার কোড স্ক্যান করুন";
-      return;
-    }
     statusEl.textContent = "";
     uniqueCode = text;
     uniqueEl.textContent = text;
@@ -95,19 +86,41 @@ function onScan(text) {
   }
 }
 
-const scanner = new Html5Qrcode("reader");
+const scanner = new Html5Qrcode("reader", {
+  formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+  useBarCodeDetectorIfSupported: true,
+  verbose: false
+});
+const flashBtn = document.getElementById("flashBtn");
+let flashOn = false;
+
 scanner.start(
-  { facingMode: "environment" },
   {
-    fps: 10,
-    qrbox: (w, h) => {
-      const s = Math.floor(Math.min(w, h) * 0.8);
-      return { width: s, height: s };
-    }
+    facingMode: "environment",
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    advanced: [{ focusMode: "continuous" }]
   },
+  { fps: 25, disableFlip: true },
   onScan
-).catch(() => {
+).then(() => {
+  try {
+    const caps = scanner.getRunningTrackCapabilities();
+    if (caps && caps.torch) flashBtn.style.display = "block";
+  } catch (e) {}
+}).catch(() => {
   statusEl.textContent = "ক্যামেরা চালু করা যায়নি, অনুমতি দিন";
+});
+
+flashBtn.addEventListener("click", async () => {
+  flashOn = !flashOn;
+  try {
+    await scanner.applyVideoConstraints({ advanced: [{ torch: flashOn }] });
+    flashBtn.textContent = flashOn ? "🔦 ফ্ল্যাশ বন্ধ" : "🔦 ফ্ল্যাশ";
+  } catch (e) {
+    flashOn = !flashOn;
+    statusEl.textContent = "এই ফোনে ফ্ল্যাশ চালু করা যাচ্ছে না";
+  }
 });
 
 saveBtn.addEventListener("click", () => {
