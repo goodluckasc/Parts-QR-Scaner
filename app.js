@@ -115,3 +115,49 @@ saveBtn.addEventListener("click", () => {
 });
 
 document.getElementById("resetBtn").addEventListener("click", resetState);
+
+const exportDateEl = document.getElementById("exportDate");
+const exportBtn = document.getElementById("exportBtn");
+
+function todayStr() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + m + "-" + day;
+}
+exportDateEl.value = todayStr();
+
+function csvCell(v) {
+  return '"' + String(v).replace(/"/g, '""') + '"';
+}
+
+exportBtn.addEventListener("click", async () => {
+  const date = exportDateEl.value || todayStr();
+  exportBtn.disabled = true;
+  statusEl.textContent = "ডেটা আনা হচ্ছে...";
+  try {
+    const res = await fetch(SCRIPT_URL + "?date=" + encodeURIComponent(date));
+    const json = await res.json();
+    if (!json.rows || json.rows.length === 0) {
+      statusEl.textContent = date + " তারিখে কোনো স্ক্যান নেই";
+    } else {
+      let csv = "\uFEFF" + "Time,Purse Code,Unique Code\r\n";
+      json.rows.forEach((r) => {
+        csv += [csvCell(r.time), csvCell(r.purse), csvCell(r.unique)].join(",") + "\r\n";
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "scans-" + date + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      statusEl.textContent = json.rows.length + "টি স্ক্যান এক্সপোর্ট হয়েছে ✔";
+    }
+  } catch (err) {
+    statusEl.textContent = "এক্সপোর্ট হয়নি, ইন্টারনেট দেখে আবার চেষ্টা করুন";
+  }
+  exportBtn.disabled = false;
+});
