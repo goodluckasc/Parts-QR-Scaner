@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>পার্স স্ক্যানার</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 12px; background: #f4f4f4; text-align: center; }
+    h2 { margin: 8px 0; }
+    #reader { width: 100%; max-width: 420px; margin: 0 auto; }
+    #step { font-size: 20px; font-weight: bold; margin: 12px 0; color: #0a58ca; }
+    #status { margin: 8px 0; min-height: 24px; }
+    .box { background: #fff; border-radius: 8px; padding: 8px; margin: 8px auto; max-width: 420px; word-break: break-all; }
+    #count { font-size: 18px; margin-top: 12px; }
+    button { padding: 10px 18px; font-size: 16px; border: 0; border-radius: 6px; background: #0a58ca; color: #fff; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h2>পার্স স্ক্যানার</h2>
+  <div id="step">ধাপ ১: পার্সের কোড স্ক্যান করুন</div>
+  <div id="reader"></div>
+  <div class="box">পার্স কোড: <span id="purseVal">-</span></div>
+  <div class="box">ইউনিক কোড: <span id="uniqueVal">-</span></div>
+  <div id="status"></div>
+  <div id="count">আজ মোট সেভ হয়েছে: <span id="total">0</span></div>
+  <button id="resetBtn">ভুল হলে আবার শুরু করুন</button>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
