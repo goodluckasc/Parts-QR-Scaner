@@ -67,13 +67,26 @@ function onScan(text) {
   lastText = text;
   lastTime = now;
 
+  text = text.trim();
+  const onlyDigits = /^[0-9]+$/.test(text);
+
   if (!purseCode) {
+    if (!onlyDigits) {
+      statusEl.textContent = "এটা পার্সের কোড না, শুধু সংখ্যার কোড স্ক্যান করুন";
+      return;
+    }
+    statusEl.textContent = "";
     purseCode = text;
     purseEl.textContent = text;
     stepEl.textContent = "ধাপ ২: ইউনিক কোড স্ক্যান করুন";
     beep();
   } else if (!uniqueCode) {
     if (text === purseCode) return;
+    if (onlyDigits) {
+      statusEl.textContent = "এটা ইউনিক কোড না, অক্ষর আর সংখ্যার কোড স্ক্যান করুন";
+      return;
+    }
+    statusEl.textContent = "";
     uniqueCode = text;
     uniqueEl.textContent = text;
     stepEl.textContent = "কোড দুইটা ঠিক থাকলে সেভ করুন";
@@ -85,7 +98,13 @@ function onScan(text) {
 const scanner = new Html5Qrcode("reader");
 scanner.start(
   { facingMode: "environment" },
-  { fps: 10, qrbox: { width: 240, height: 240 } },
+  {
+    fps: 10,
+    qrbox: (w, h) => {
+      const s = Math.floor(Math.min(w, h) * 0.8);
+      return { width: s, height: s };
+    }
+  },
   onScan
 ).catch(() => {
   statusEl.textContent = "ক্যামেরা চালু করা যায়নি, অনুমতি দিন";
