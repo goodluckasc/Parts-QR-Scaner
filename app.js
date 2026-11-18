@@ -92,12 +92,21 @@ let flashOn = false;
 
 scanner.start(
   { facingMode: "environment" },
-  { fps: 15 },
+  {
+    fps: 15,
+    qrbox: (w, h) => {
+      const s = Math.floor(Math.min(w, h) * 0.85);
+      return { width: s, height: s };
+    }
+  },
   onScan
 ).then(() => {
   try {
     const caps = scanner.getRunningTrackCapabilities();
     if (caps && caps.torch) flashBtn.style.display = "block";
+    if (caps && caps.focusMode && caps.focusMode.indexOf("continuous") !== -1) {
+      scanner.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+    }
   } catch (e) {}
 }).catch(() => {
   statusEl.textContent = "ক্যামেরা চালু করা যায়নি, ব্রাউজারে ক্যামেরার অনুমতি দিন";
