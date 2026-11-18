@@ -12,7 +12,9 @@
     #status { margin: 8px 0; min-height: 24px; }
     .box { background: #fff; border-radius: 8px; padding: 8px; margin: 8px auto; max-width: 420px; word-break: break-all; }
     #count { font-size: 18px; margin-top: 12px; }
-    button { padding: 10px 18px; font-size: 16px; border: 0; border-radius: 6px; background: #0a58ca; color: #fff; margin-top: 8px; }
+    button { padding: 12px 22px; font-size: 18px; border: 0; border-radius: 6px; background: #198754; color: #fff; margin: 8px 4px 0; }
+    button:disabled { background: #b5b5b5; }
+    button.secondary { background: #6c757d; font-size: 15px; padding: 10px 16px; }
   </style>
 </head>
 <body>
@@ -23,7 +25,8 @@
   <div class="box">ইউনিক কোড: <span id="uniqueVal">-</span></div>
   <div id="status"></div>
   <div id="count">আজ মোট সেভ হয়েছে: <span id="total">0</span></div>
-  <button id="resetBtn">ভুল হলে আবার শুরু করুন</button>
+  <button id="saveBtn" disabled>সেভ করুন</button>
+  <button id="resetBtn" class="secondary">ভুল হলে আবার শুরু করুন</button>
 
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="config.js"></script>
