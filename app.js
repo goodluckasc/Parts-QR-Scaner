@@ -86,22 +86,13 @@ function onScan(text) {
   }
 }
 
-const scanner = new Html5Qrcode("reader", {
-  formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-  useBarCodeDetectorIfSupported: true,
-  verbose: false
-});
+const scanner = new Html5Qrcode("reader");
 const flashBtn = document.getElementById("flashBtn");
 let flashOn = false;
 
 scanner.start(
-  {
-    facingMode: "environment",
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    advanced: [{ focusMode: "continuous" }]
-  },
-  { fps: 25, disableFlip: true },
+  { facingMode: "environment" },
+  { fps: 15 },
   onScan
 ).then(() => {
   try {
@@ -109,7 +100,7 @@ scanner.start(
     if (caps && caps.torch) flashBtn.style.display = "block";
   } catch (e) {}
 }).catch(() => {
-  statusEl.textContent = "ক্যামেরা চালু করা যায়নি, অনুমতি দিন";
+  statusEl.textContent = "ক্যামেরা চালু করা যায়নি, ব্রাউজারে ক্যামেরার অনুমতি দিন";
 });
 
 flashBtn.addEventListener("click", async () => {
