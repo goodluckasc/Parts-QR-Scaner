@@ -60,9 +60,6 @@ let duplicateOverride = false;
 let lastText = "";
 let lastTime = 0;
 let scanner = null;
-let cameras = [];
-let cameraIndex = -1;
-let paused = false;
 let retrying = false;
 let audioCtx = null;
 let toastTimer = null;
@@ -238,7 +235,7 @@ function resetState() {
 
 function onScan(text) {
   const now = Date.now();
-  if (busy || paused || !text) return;
+  if (busy || !text) return;
   if (text === lastText && now - lastTime < 2500) return;
   lastText = text;
   lastTime = now;
@@ -255,11 +252,11 @@ function cameraError(message) {
   ui.cameraMsg.textContent = message;
   ui.cameraMsg.classList.remove("hidden");
   ui.scanFrame.classList.add("hidden");
+  if (ui.startCameraBtn) ui.startCameraBtn.classList.remove("hidden");
 }
 
-function showCameraError(message) {
-  cameraError(message);
-  if (ui.startCameraBtn) ui.startCameraBtn.classList.remove("hidden");
+function showCameraError(input) {
+  cameraError(typeof input === "string" ? input : cameraErrorMessage(input));
 }
 
 function cameraErrorMessage(err) {
@@ -281,12 +278,6 @@ function cameraErrorMessage(err) {
   return "ক্যামেরা চালু করা যায়নি।" + detail + " নিচের বাটন চাপুন।" + code;
 }
 
-function setPausedUI(value) {
-  paused = value;
-  all('[data-action="pause"]').forEach((btn) => { btn.textContent = paused ? "▶ স্ক্যান চালু" : "⏸ স্ক্যান থামানো"; });
-  ui.scanFrame.classList.toggle("hidden", paused);
-}
-
 function patchVideoForMobile() {
   const video = document.querySelector("#reader video");
   if (!video) return;
@@ -301,116 +292,86 @@ function patchVideoForMobile() {
 }
 
 async function clearScanner() {
-  if (!scanner) return;
-  try { await scanner.stop(); } catch (e) { /* ignore */ }
-  try { if (typeof scanner.clear === "function") scanner.clear(); } catch (e) { /* ignore */ }
-  scanner = null;
+  if (scanner) {
+    try { await scanner.stop(); } catch (e) { /* ignore */ }
+    try { if (typeof scanner.clear === "function") scanner.clear(); } catch (e) { /* ignore */ }
+    scanner = null;
+  }
+  const reader = byId("reader");
+  if (!reader) return;
+  const staleVideo = reader.querySelector("video");
+  if (staleVideo && staleVideo.srcObject) {
+    try { staleVideo.srcObject.getTracks().forEach((t) => t.stop()); } catch (e) { /* ignore */ }
+  }
+  reader.innerHTML = "";
 }
 
-/* সরাসরি getUserMedia দিয়ে ক্যামেরা পরীক্ষা — লাইব্রেরির constraint সমস্যা এড়ায় */
-async function probeCamera() {
-  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-    return { ok: false, error: { name: "NotSupportedError" } };
-  }
-  const tries = [
-    { video: { facingMode: { ideal: "environment" } }, audio: false },
-    { video: { facingMode: { ideal: "user" } }, audio: false },
-    { video: true, audio: false }
-  ];
-  let lastErr = null;
-  for (const constraints of tries) {
-    let stream = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      const track = stream.getVideoTracks()[0];
-      const settings = track && track.getSettings ? track.getSettings() : {};
-      return {
-        ok: true,
-        info: {
-          deviceId: settings.deviceId || null,
-          width: settings.width || 0,
-          height: settings.height || 0,
-          label: track ? track.label : ""
-        }
-      };
-    } catch (err) {
-      lastErr = err;
-    } finally {
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-    }
-  }
-  return { ok: false, error: lastErr };
+/* লাইব্রেরির সঠিক API: start(cameraIdOrConfig, configuration, successCb, errorCb) */
+function qrboxFor() {
+  /* qrbox is in CAMERA pixels, not CSS pixels — must stay generous
+     so a code that fills the preview is not cropped away. */
+  return { width: 320, height: 320 };
 }
 
-function qrboxFor(info) {
-  const rect = byId("reader").getBoundingClientRect();
-  const viewMin = Math.min(rect.width || 300, rect.height || 300);
-  const streamMin = info && info.width && info.height ? Math.min(info.width, info.height) : 720;
-  const size = Math.max(120, Math.min(220, Math.floor(Math.min(viewMin, streamMin) * 0.6)));
-  return { width: size, height: size };
-}
-
-async function startScanner(options) {
-  await clearScanner();
-
-  let probe;
-  try {
-    probe = await probeCamera();
-  } catch (err) {
-    probe = { ok: false, error: err };
+function cameraConfigs(selected) {
+  const list = [];
+  if (selected) {
+    if (typeof selected === "string") list.push({ deviceId: { exact: selected } });
+    else if (selected.deviceId) list.push({ deviceId: { exact: selected.deviceId } });
+    else if (selected.facingMode) list.push({ facingMode: selected.facingMode });
   }
-  if (!probe.ok) {
-    lastCameraError = probe.error;
-    console.warn("[camera] probe failed:", probe.error);
-    showCameraError(cameraErrorMessage(probe.error));
-    return false;
-  }
-
-  const deviceId = (options && options.deviceId) || probe.info.deviceId;
-  const qrbox = qrboxFor(probe.info);
-  const attempts = [];
-  if (deviceId) attempts.push({ deviceId: { exact: deviceId } });
-  if (options && options.facingMode) attempts.push({ facingMode: options.facingMode });
-  attempts.push({ facingMode: "environment" }, { facingMode: "user" }, {});
+  list.push({ facingMode: "environment" });
+  list.push({ facingMode: "user" });
   const seen = new Set();
-  const configs = attempts.filter((c) => {
+  return list.filter((c) => {
     const key = JSON.stringify(c);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-
-  let lastError = null;
-  for (const source of configs) {
-    try {
-      scanner = new Html5Qrcode("reader");
-      await scanner.start(Object.assign({}, source, { fps: 10, qrbox }), onScan, () => {});
-      patchVideoForMobile();
-      setPausedUI(false);
-      ui.cameraMsg.classList.add("hidden");
-      ui.scanFrame.classList.remove("hidden");
-      if (ui.startCameraBtn) ui.startCameraBtn.classList.add("hidden");
-      lastCameraError = null;
-      return true;
-    } catch (err) {
-      lastError = err;
-      console.warn("[camera] start failed:", source, err);
-      await clearScanner();
-    }
-  }
-  lastCameraError = lastError;
-  showCameraError(cameraErrorMessage(lastError));
-  return false;
 }
 
-async function refreshCameras() {
-  if (!window.Html5Qrcode) return [];
+function videoHasFrames() {
+  const video = document.querySelector("#reader video");
+  return !!(video && video.videoWidth > 0 && video.readyState >= 2);
+}
+
+let startingScanner = false;
+
+async function startScanner(options) {
+  if (startingScanner) return false;
+  startingScanner = true;
+  await clearScanner();
+
+  let lastError = null;
   try {
-    cameras = (await Html5Qrcode.getCameras()) || [];
-  } catch (e) {
-    cameras = [];
+    for (const source of cameraConfigs(options)) {
+      try {
+        /* আর্গুমেন্ট ১ = শুধু ক্যামেরা সিলেক্টর; আর্গুমেন্ট ২ = fps/qrbox কনফিগ */
+        scanner = new Html5Qrcode("reader");
+        await scanner.start(source, { fps: 10, qrbox: qrboxFor() }, onScan, () => {});
+        patchVideoForMobile();
+        for (let i = 0; i < 15 && !videoHasFrames(); i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        if (!videoHasFrames()) throw new Error("Camera preview is blank");
+        ui.scanFrame.classList.remove("hidden");
+        ui.cameraMsg.classList.add("hidden");
+        if (ui.startCameraBtn) ui.startCameraBtn.classList.add("hidden");
+        lastCameraError = null;
+        return true;
+      } catch (err) {
+        lastError = err;
+        console.warn("[camera] start failed:", source, err);
+        await clearScanner();
+      }
+    }
+    lastCameraError = lastError;
+    showCameraError(lastError);
+    return false;
+  } finally {
+    startingScanner = false;
   }
-  return cameras;
 }
 
 async function initScanner() {
@@ -427,31 +388,6 @@ if (ui.startCameraBtn) ui.startCameraBtn.addEventListener("click", async () => {
   await startScanner({ facingMode: "environment" });
   ui.startCameraBtn.disabled = false;
 });
-
-all('[data-action="camera"]').forEach((btn) => btn.addEventListener("click", async () => {
-  await refreshCameras();
-  if (cameras.length < 2) {
-    toast("একটির বেশি ক্যামেরা পাওয়া যায়নি", "warn");
-    return;
-  }
-  cameraIndex = (cameraIndex + 1) % cameras.length;
-  const ok = await startScanner({ deviceId: cameras[cameraIndex].id, facingMode: "environment" });
-  if (ok) toast("ক্যামেরা বদল হয়েছে", "success");
-}));
-
-all('[data-action="pause"]').forEach((btn) => btn.addEventListener("click", async () => {
-  if (!scanner) {
-    showCameraError(lastCameraError ? cameraErrorMessage(lastCameraError) : "ক্যামেরা চালু নেই। নিচের বাটন চাপুন।");
-    return;
-  }
-  try {
-    if (paused) await scanner.resume();
-    else await scanner.pause(true);
-    setPausedUI(!paused);
-  } catch (e) {
-    toast("স্ক্যান নিয়ন্ত্রণ করা যায়নি", "error");
-  }
-}));
 
 /* ---------- হিস্ট্রি ও সেভ ---------- */
 

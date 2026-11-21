@@ -55,9 +55,9 @@ No environment variables are needed. `config.js` is committed with the public Ap
 - Accept the browser's camera permission prompt on first load.
 - If auto-start is blocked — common in iOS Safari — tap **📷 ক্যামেরা চালু করুন** under the scanner. That button counts as a user gesture and starts the camera reliably.
 - If the camera is busy in another app (Zoom, Teams, etc.), close it and tap the button again.
-- Use **⟳ ক্যামেরা বদল** if the front camera opens instead of the rear one.
+- The app automatically prefers the rear camera, then falls back to the front camera and any available camera.
 - The scanner library falls back to jsDelivr if unpkg is blocked on your network.
-- The on-screen message now ends with a code such as `[NotAllowedError]`. If you still see the **old generic** message, the updated files are not live yet — re-upload `app.js` and `index.html` and redeploy.
+- On-screen errors end with a code such as `[NotAllowedError]`. If you still see an error without a code after granting permission, the updated files are not live yet — re-upload `app.js` and `index.html` and redeploy.
 
 ## Install as an app
 
