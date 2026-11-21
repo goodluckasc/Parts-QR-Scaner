@@ -2,37 +2,436 @@
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
+  <meta name="theme-color" content="#123a72">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="পার্স স্ক্যানার">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <title>পার্স স্ক্যানার</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 12px; background: #f4f4f4; text-align: center; }
-    h2 { margin: 8px 0; }
-    #reader { width: 100%; max-width: 420px; margin: 0 auto; }
-    #step { font-size: 20px; font-weight: bold; margin: 12px 0; color: #0a58ca; }
-    #status { margin: 8px 0; min-height: 24px; }
-    .box { background: #fff; border-radius: 8px; padding: 8px; margin: 8px auto; max-width: 420px; word-break: break-all; }
-    #count { font-size: 18px; margin-top: 12px; }
-    #pending { font-size: 14px; color: #b35c00; margin-top: 6px; min-height: 18px; }
-    #warn { font-size: 14px; font-weight: bold; color: #dc3545; margin-top: 8px; min-height: 18px; }
-    button { padding: 12px 22px; font-size: 18px; border: 0; border-radius: 6px; background: #198754; color: #fff; margin: 8px 4px 0; }
-    button:disabled { background: #b5b5b5; }
-    button.secondary { background: #6c757d; font-size: 15px; padding: 10px 16px; }
+    :root {
+      color-scheme: light;
+      --bg: #eef2f8;
+      --surface: #ffffff;
+      --surface-2: #f5f8fc;
+      --text: #152238;
+      --muted: #69778d;
+      --line: #e2e8f0;
+      --brand: #1d64d8;
+      --brand-2: #123a72;
+      --accent: #0f9d72;
+      --warn: #c77800;
+      --danger: #d64545;
+      --shadow: 0 8px 22px rgba(18, 58, 114, .08);
+      --radius: 16px;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0c1524;
+      --surface: #152238;
+      --surface-2: #1b2b45;
+      --text: #eef3fb;
+      --muted: #9aabc2;
+      --line: #2a3b56;
+      --brand: #5b9bff;
+      --brand-2: #0f2c5c;
+      --accent: #35c79a;
+      --warn: #f2b45c;
+      --danger: #ff7272;
+      --shadow: 0 8px 22px rgba(0, 0, 0, .28);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { height: 100%; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Bengali", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; touch-action: manipulation; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .hidden { display: none !important; }
+
+    /* App shell — full height, safe-area aware */
+    .app-shell {
+      display: flex; flex-direction: column; width: 100%; max-width: 560px;
+      height: 100vh; height: 100dvh; margin: 0 auto; background: var(--bg); overflow: hidden;
+    }
+    .app-header {
+      flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: calc(env(safe-area-inset-top) + 16px) 16px 14px;
+      border-radius: 0 0 22px 22px; color: #fff;
+      background: linear-gradient(135deg, var(--brand-2), var(--brand));
+      box-shadow: 0 8px 24px rgba(18, 58, 114, .22); z-index: 2;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand-icon {
+      width: 44px; height: 44px; flex: 0 0 44px; border-radius: 13px;
+      background: rgba(255,255,255,.16); display: grid; place-items: center;
+    }
+    .brand-icon svg { width: 25px; height: 25px; }
+    .app-header h1 { font-size: clamp(17px, 4.6vw, 20px); margin: 0; line-height: 1.2; }
+    .app-header p { margin: 2px 0 0; font-size: 11px; opacity: .82; }
+    .icon-btn {
+      width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 13px;
+      background: rgba(255,255,255,.16); color: #fff; font-size: 19px;
+    }
+
+    /* Fixed stat strip */
+    .stats { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 12px 2px; }
+    .stat {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
+      padding: 8px 5px; text-align: center; box-shadow: var(--shadow);
+    }
+    .stat-label { display: block; font-size: 10px; color: var(--muted); }
+    .stat strong { display: block; font-size: clamp(18px, 5vw, 22px); line-height: 1.25; color: var(--brand); }
+    .stat:nth-child(2) strong { color: var(--accent); }
+    .stat:nth-child(3) strong { color: var(--warn); }
+
+    /* Scroll area + views */
+    .app-main {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding: 8px 12px calc(86px + env(safe-area-inset-bottom));
+    }
+    .app-main::-webkit-scrollbar { display: none; }
+    .view { display: none; }
+    .view.active { display: block; animation: viewIn .18s ease-out; }
+    @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .card h2 { font-size: 16px; margin: 0 0 6px; }
+    .steps { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+    .step { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; font-weight: 700;
+    }
+    .step-line { flex: 1; height: 2px; background: var(--line); border-radius: 2px; }
+    .step.active { color: var(--brand); font-weight: 700; }
+    .step.active .step-num { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .step.done { color: var(--accent); }
+    .step.done .step-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .hint { margin: 0 0 10px; text-align: center; font-size: 13px; font-weight: 700; color: var(--brand); }
+
+    .scanner-wrap {
+      position: relative; width: 100%; overflow: hidden; border-radius: 14px; background: #0b1220;
+      height: clamp(210px, 42vh, 380px); height: clamp(210px, 42dvh, 380px);
+    }
+    #reader { width: 100%; height: 100%; }
+    #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+    .scan-frame { position: absolute; inset: 11% 15%; pointer-events: none; }
+    .scan-frame i { position: absolute; width: 28px; height: 28px; border: 3px solid #fff; opacity: .9; }
+    .scan-frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+    .scan-frame i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+    .scan-frame i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
+    .scan-frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
+    .scan-line {
+      position: absolute; left: 6%; right: 6%; top: 6%; height: 2px;
+      background: linear-gradient(90deg, transparent, #6ee7ff, transparent);
+      box-shadow: 0 0 12px #6ee7ff; animation: sweep 2.4s ease-in-out infinite alternate;
+    }
+    @keyframes sweep { from { top: 6%; } to { top: 94%; } }
+    .camera-msg {
+      position: absolute; inset: 0; display: grid; place-items: center; padding: 22px;
+      background: rgba(8,16,30,.93); color: #fff; text-align: center; font-size: 13px; line-height: 1.6;
+    }
+    .camera-tools { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 11px; }
+    .chip {
+      min-height: 40px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+      background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+    }
+    .chip:hover { border-color: var(--brand); color: var(--brand); }
+
+    .code-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-bottom: 8px;
+      border: 1px solid var(--line);
+    }
+    .code-label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .code-value { display: block; font-size: 14px; font-weight: 700; word-break: break-all; }
+    .code-value.filled { color: var(--accent); }
+    .tiny {
+      min-height: 38px; padding: 7px 11px; border-radius: 10px; font-size: 12px; font-weight: 700;
+      border: 1px solid var(--line); background: var(--surface); color: var(--brand); white-space: nowrap;
+    }
+    .tiny.danger { color: var(--danger); }
+    .warning {
+      background: rgba(199,120,0,.1); border: 1px solid var(--warn); color: var(--warn);
+      border-radius: 12px; padding: 10px 12px; font-size: 12px; margin-top: 9px; line-height: 1.6;
+    }
+    .warning .tiny { margin-top: 8px; }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .actions .primary, .actions .wide { grid-column: 1 / -1; }
+    .primary {
+      min-height: 50px; border: 0; border-radius: 13px; padding: 12px 16px;
+      font-size: 16px; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, var(--accent), #0b8f9c);
+      box-shadow: 0 6px 16px rgba(15,157,114,.24);
+    }
+    .ghost {
+      min-height: 46px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+      border-radius: 13px; padding: 10px 12px; font-size: 13px; font-weight: 700;
+    }
+
+    /* History */
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .head-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    #searchInput {
+      position: sticky; top: 0; z-index: 1; width: 100%; margin: 11px 0 9px; padding: 12px 13px;
+      min-height: 44px; border-radius: 11px; border: 1px solid var(--line);
+      background: var(--surface-2); color: var(--text); font-size: 14px;
+    }
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .entry {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 11px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line);
+    }
+    .entry-main { min-width: 0; }
+    .entry-codes { font-size: 13px; font-weight: 700; word-break: break-all; }
+    .entry-codes span { color: var(--muted); font-weight: 400; }
+    .entry-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+    .entry-side { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    .badge { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+    .badge.sent { background: rgba(15,157,114,.12); color: var(--accent); }
+    .badge.pending { background: rgba(199,120,0,.14); color: var(--warn); }
+    .del {
+      min-width: 36px; min-height: 36px; border: 0; background: transparent;
+      color: var(--muted); font-size: 22px; line-height: 1;
+    }
+    .empty { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 8px; margin: 0; }
+
+    /* Settings */
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      min-height: 54px; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600;
+    }
+    .setting-row:last-child { border-bottom: 0; }
+    .switch { position: relative; width: 48px; height: 28px; flex: 0 0 48px; }
+    .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .slider { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: .2s; pointer-events: none; }
+    .slider::before {
+      content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: .2s;
+    }
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .setting-block { padding: 14px 0 4px; }
+    .setting-block > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 9px; }
+    .segmented {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+      background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px;
+    }
+    .segmented button {
+      min-height: 40px; border: 0; border-radius: 9px; background: transparent;
+      color: var(--muted); font-size: 13px; font-weight: 700;
+    }
+    .segmented button.active { background: var(--surface); color: var(--brand); box-shadow: var(--shadow); }
+    .note { font-size: 11px; color: var(--muted); line-height: 1.7; margin: 10px 0 0; }
+
+    /* Bottom navigation */
+    .bottom-nav {
+      flex: none; display: grid; grid-template-columns: repeat(3, 1fr);
+      background: var(--surface); border-top: 1px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom);
+      box-shadow: 0 -6px 18px rgba(18,58,114,.06); z-index: 3;
+    }
+    .nav-item {
+      position: relative; min-height: 58px; border: 0; background: transparent; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      font-size: 11px; font-weight: 700;
+    }
+    .nav-item svg { width: 22px; height: 22px; }
+    .nav-item.active { color: var(--brand); }
+    .nav-item.active::before {
+      content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 34px; height: 3px; border-radius: 0 0 3px 3px; background: var(--brand);
+    }
+    .nav-badge {
+      position: absolute; top: 5px; left: calc(50% + 9px); min-width: 17px; height: 17px;
+      padding: 0 4px; border-radius: 9px; background: var(--warn); color: #fff;
+      font-size: 10px; display: none; place-items: center;
+    }
+    .nav-badge.show { display: grid; }
+
+    /* Toast + bottom sheet */
+    .toast {
+      position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom));
+      transform: translate(-50%, 12px); max-width: calc(100% - 30px);
+      padding: 12px 18px; border-radius: 12px; background: #152238; color: #fff;
+      font-size: 13px; font-weight: 600; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.28);
+      opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.success { background: #0f7d5e; }
+    .toast.error { background: #b83535; }
+    .toast.warn { background: #a96a06; }
+
+    /* Desktop: show as a phone-sized app window */
+    @media (min-width: 600px) {
+      body { display: grid; place-items: center; background: #0b1220; }
+      .app-shell { height: min(900px, 100dvh); border-radius: 28px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+      .app-header { border-radius: 0 0 22px 22px; }
+    }
+    @media (max-height: 640px) {
+      .stats { margin-top: 7px; }
+      .stat { padding: 6px 5px; }
+      .scanner-wrap { height: clamp(180px, 36dvh, 300px); }
+      .card { padding: 12px; }
+    }
   </style>
 </head>
 <body>
-  <h2>পার্স স্ক্যানার</h2>
-  <div id="step">ধাপ ১: পার্সের কোড স্ক্যান করুন</div>
-  <div id="reader"></div>
-  <div class="box">পার্স কোড: <span id="purseVal">-</span></div>
-  <div class="box">ইউনিক কোড: <span id="uniqueVal">-</span></div>
-  <div id="status"></div>
-  <div id="count">আজ মোট সেভ হয়েছে: <span id="total">0</span></div>
-  <div id="pending"></div>
-  <div id="warn"></div>
-  <button id="saveBtn" disabled>সেভ করুন</button>
-  <button id="resetBtn" class="secondary">ভুল হলে আবার শুরু করুন</button>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
+            <path d="M7 8v8M11 8v8M15 8v8M19 8v8"/>
+          </svg>
+        </div>
+        <div>
+          <h1>পার্স স্ক্যানার</h1>
+          <p>দুই ধাপে কোড স্ক্যান ও সেভ করুন</p>
+        </div>
+      </div>
+      <button id="themeBtn" class="icon-btn" title="থিম বদল" aria-label="থিম বদল">☾</button>
+    </header>
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+    <section class="stats" aria-label="পরিসংখ্যান">
+      <div class="stat"><span class="stat-label">আজ সেভ</span><strong data-stat="today">0</strong></div>
+      <div class="stat"><span class="stat-label">মোট ইউনিক</span><strong data-stat="unique">0</strong></div>
+      <div class="stat"><span class="stat-label">অপেক্ষমাণ</span><strong data-stat="pending">0</strong></div>
+    </section>
+
+    <main class="app-main" id="main">
+      <!-- স্ক্যান -->
+      <section class="view active" id="viewScan">
+        <div class="card">
+          <div class="steps">
+            <div class="step active" id="step1"><span class="step-num">১</span><span>পার্স কোড</span></div>
+            <div class="step-line"></div>
+            <div class="step" id="step2"><span class="step-num">২</span><span>ইউনিক কোড</span></div>
+          </div>
+          <p id="step" class="hint">ধাপ ১: পার্সের কোড স্ক্যান করুন</p>
+          <div class="scanner-wrap">
+            <div id="reader"></div>
+            <div class="scan-frame" id="scanFrame" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="scan-line"></span></div>
+            <div id="cameraMsg" class="camera-msg hidden"></div>
+          </div>
+          <div class="camera-tools">
+            <button class="chip" data-action="pause">⏸ স্ক্যান থামানো</button>
+            <button class="chip" data-action="camera">⟳ ক্যামেরা বদল</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="code-row">
+            <div><span class="code-label">পার্স কোড</span><span id="purseVal" class="code-value">-</span></div>
+            <button class="tiny" data-copy="purseVal">কপি</button>
+          </div>
+          <div class="code-row">
+            <div><span class="code-label">ইউনিক কোড</span><span id="uniqueVal" class="code-value">-</span></div>
+            <button class="tiny" data-copy="uniqueVal">কপি</button>
+          </div>
+          <div id="dupWarning" class="warning hidden">
+            ⚠ এই ইউনিক কোডটি আগে সেভ হয়েছে। আবার সেভ করতে চাইলে নিচের বাটন চাপুন।
+            <br><button id="overrideBtn" class="tiny">তবুও সেভ করুন</button>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="saveBtn" class="primary" disabled>সেভ করুন</button>
+          <button id="resetBtn" class="ghost wide">আবার শুরু</button>
+        </div>
+      </section>
+
+      <!-- হিসাব -->
+      <section class="view" id="viewHistory">
+        <div class="card">
+          <div class="section-head">
+            <h2>সেভ করা কোড</h2>
+            <div class="head-actions">
+              <button id="retryBtn" class="tiny">অপেক্ষমাণ পাঠান</button>
+              <button id="exportBtn" class="tiny">CSV</button>
+              <button id="clearBtn" class="tiny danger">সব মুছুন</button>
+            </div>
+          </div>
+          <input id="searchInput" type="search" placeholder="কোড খুঁজুন...">
+          <div id="historyList" class="history-list"></div>
+          <p id="emptyHistory" class="empty">এখনো কোনো এন্ট্রি নেই। স্ক্যান করে সেভ করুন।</p>
+        </div>
+      </section>
+
+      <!-- সেটিংস -->
+      <section class="view" id="viewSettings">
+        <div class="card">
+          <h2>অ্যাপ সেটিংস</h2>
+          <div class="setting-row">
+            <span>স্ক্যানের শব্দ</span>
+            <label class="switch"><input id="soundToggle" type="checkbox" checked aria-label="স্ক্যানের শব্দ"><span class="slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <span>ভাইব্রেশন</span>
+            <label class="switch"><input id="vibeToggle" type="checkbox" checked aria-label="ভাইব্রেশন"><span class="slider"></span></label>
+          </div>
+          <div class="setting-block">
+            <span>থিম</span>
+            <div class="segmented">
+              <button class="theme-option active" data-theme-value="auto">সিস্টেম</button>
+              <button class="theme-option" data-theme-value="light">লাইট</button>
+              <button class="theme-option" data-theme-value="dark">ডার্ক</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>ক্যামেরা</h2>
+          <div class="camera-tools">
+            <button class="chip" data-action="pause">⏸ স্ক্যান থামানো</button>
+            <button class="chip" data-action="camera">⟳ ক্যামেরা বদল</button>
+          </div>
+          <p class="note">ক্যামেরা ব্যবহার করতে HTTPS বা localhost প্রয়োজন। হোম স্ক্রিনে অ্যাপটি যোগ করে পূর্ণস্ক্রিনে চালানো যায়।</p>
+        </div>
+
+        <div class="card">
+          <h2>আরও</h2>
+          <div class="actions">
+            <button id="exportBtn2" class="ghost wide">CSV এক্সপোর্ট</button>
+          </div>
+          <p class="note">ডেটা শুধু এই ডিভাইসে সংরক্ষিত হয়। ইন্টারনেট না থাকলে সেভগুলো অপেক্ষমাণ থাকে ও পরে পাঠানো যায়।</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="মূল নেভিগেশন">
+      <button class="nav-item active" data-tab="viewScan" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M7 8v8M11 8v8M15 8v8M19 8v8"/></svg>
+        <span>স্ক্যান</span>
+      </button>
+      <button class="nav-item" data-tab="viewHistory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M17 16l2 2 3-4"/></svg>
+        <span>হিসাব</span><span id="navPending" class="nav-badge">0</span>
+      </button>
+      <button class="nav-item" data-tab="viewSettings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2" fill="currentColor" stroke="none"/></svg>
+        <span>সেটিংস</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

@@ -1,5 +1,6 @@
 {
   "name": "purse-scanner",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Two-step QR scanner for purse and unique codes with local history, offline retry and dark mode",
   "private": true
 }
