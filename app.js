@@ -264,15 +264,21 @@ function showCameraError(message) {
 
 function cameraErrorMessage(err) {
   const name = err && err.name ? err.name : "";
-  if (!window.isSecureContext) return "ক্যামেরা চালু করতে HTTPS বা localhost দরকার।";
+  const code = name ? " [" + name + "]" : "";
+  if (window.self !== window.top)
+    return "ক্যামেরা iframe-এ চলে না। অ্যাপটি নতুন ট্যাবে খুলুন।" + code;
+  if (!window.isSecureContext)
+    return "ক্যামেরা চালু করতে HTTPS বা localhost দরকার।" + code;
   if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError")
-    return "ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের অনুমতি দিন, তারপর 'ক্যামেরা চালু' বাটন চাপুন।";
+    return "ক্যামেরার অনুমতি দেওয়া হয়নি। ঠিকানা বারের লক আইকনে ক্লিক করে ক্যামেরা অনুমতি দিন, তারপর 'ক্যামেরা চালু' বাটন চাপুন।" + code;
   if (name === "NotFoundError" || name === "DevicesNotFoundError")
-    return "কোনো ক্যামেরা পাওয়া যায়নি।";
+    return "কোনো ক্যামেরা পাওয়া যায়নি।" + code;
   if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError")
-    return "ক্যামেরা ব্যস্ত আছে। অন্য অ্যাপ বন্ধ করে আবার চেষ্টা করুন।";
-  const detail = err && err.message ? " (" + err.message + ")" : "";
-  return "ক্যামেরা চালু করা যায়নি" + detail + "। নিচের বাটন চাপুন।";
+    return "ক্যামেরা ব্যস্ত আছে। অন্য অ্যাপ বন্ধ করে আবার চেষ্টা করুন।" + code;
+  if (name === "OverconstrainedError")
+    return "ক্যামেরা সেটিংস মানতে পারছে না। 'ক্যামেরা বদল' বাটন চাপুন।" + code;
+  const detail = err && err.message ? " " + err.message : "";
+  return "ক্যামেরা চালু করা যায়নি।" + detail + " নিচের বাটন চাপুন।" + code;
 }
 
 function setPausedUI(value) {
@@ -301,10 +307,69 @@ async function clearScanner() {
   scanner = null;
 }
 
+/* সরাসরি getUserMedia দিয়ে ক্যামেরা পরীক্ষা — লাইব্রেরির constraint সমস্যা এড়ায় */
+async function probeCamera() {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    return { ok: false, error: { name: "NotSupportedError" } };
+  }
+  const tries = [
+    { video: { facingMode: { ideal: "environment" } }, audio: false },
+    { video: { facingMode: { ideal: "user" } }, audio: false },
+    { video: true, audio: false }
+  ];
+  let lastErr = null;
+  for (const constraints of tries) {
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const track = stream.getVideoTracks()[0];
+      const settings = track && track.getSettings ? track.getSettings() : {};
+      return {
+        ok: true,
+        info: {
+          deviceId: settings.deviceId || null,
+          width: settings.width || 0,
+          height: settings.height || 0,
+          label: track ? track.label : ""
+        }
+      };
+    } catch (err) {
+      lastErr = err;
+    } finally {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    }
+  }
+  return { ok: false, error: lastErr };
+}
+
+function qrboxFor(info) {
+  const rect = byId("reader").getBoundingClientRect();
+  const viewMin = Math.min(rect.width || 300, rect.height || 300);
+  const streamMin = info && info.width && info.height ? Math.min(info.width, info.height) : 720;
+  const size = Math.max(120, Math.min(220, Math.floor(Math.min(viewMin, streamMin) * 0.6)));
+  return { width: size, height: size };
+}
+
 async function startScanner(options) {
   await clearScanner();
+
+  let probe;
+  try {
+    probe = await probeCamera();
+  } catch (err) {
+    probe = { ok: false, error: err };
+  }
+  if (!probe.ok) {
+    lastCameraError = probe.error;
+    console.warn("[camera] probe failed:", probe.error);
+    showCameraError(cameraErrorMessage(probe.error));
+    return false;
+  }
+
+  const deviceId = (options && options.deviceId) || probe.info.deviceId;
+  const qrbox = qrboxFor(probe.info);
   const attempts = [];
-  if (options && options.deviceId) attempts.push({ deviceId: { exact: options.deviceId } });
+  if (deviceId) attempts.push({ deviceId: { exact: deviceId } });
   if (options && options.facingMode) attempts.push({ facingMode: options.facingMode });
   attempts.push({ facingMode: "environment" }, { facingMode: "user" }, {});
   const seen = new Set();
@@ -319,11 +384,7 @@ async function startScanner(options) {
   for (const source of configs) {
     try {
       scanner = new Html5Qrcode("reader");
-      await scanner.start(
-        Object.assign({}, source, { fps: 10, qrbox: { width: 240, height: 240 } }),
-        onScan,
-        () => {}
-      );
+      await scanner.start(Object.assign({}, source, { fps: 10, qrbox }), onScan, () => {});
       patchVideoForMobile();
       setPausedUI(false);
       ui.cameraMsg.classList.add("hidden");
@@ -333,6 +394,7 @@ async function startScanner(options) {
       return true;
     } catch (err) {
       lastError = err;
+      console.warn("[camera] start failed:", source, err);
       await clearScanner();
     }
   }
@@ -351,31 +413,18 @@ async function refreshCameras() {
   return cameras;
 }
 
-function preferredCamera() {
-  return cameras.find((c) => /back|environment|rear|পেছন/i.test(c.label || "")) || cameras[0];
-}
-
 async function initScanner() {
   if (!window.Html5Qrcode) {
     showCameraError("স্ক্যানার লাইব্রেরি লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
     return;
   }
-  await refreshCameras();
-  const preferred = preferredCamera();
-  cameraIndex = preferred ? cameras.indexOf(preferred) : -1;
-  await startScanner(preferred
-    ? { deviceId: preferred.id, facingMode: "environment" }
-    : { facingMode: "environment" });
+  await startScanner({ facingMode: "environment" });
 }
 
 if (ui.startCameraBtn) ui.startCameraBtn.addEventListener("click", async () => {
   ui.startCameraBtn.disabled = true;
   ui.cameraMsg.textContent = "ক্যামেরা চালু হচ্ছে...";
-  await refreshCameras();
-  const preferred = preferredCamera();
-  await startScanner(preferred
-    ? { deviceId: preferred.id, facingMode: "environment" }
-    : { facingMode: "environment" });
+  await startScanner({ facingMode: "environment" });
   ui.startCameraBtn.disabled = false;
 });
 
