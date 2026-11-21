@@ -49,6 +49,15 @@ No environment variables are needed. `config.js` is committed with the public Ap
 - The request uses `mode: "no-cors"`, so the page cannot verify the Sheet wrote the row; it only knows the request was sent. If it fails at the network level, the entry stays marked **অপেক্ষমাণ** and can be retried from the **হিসাব** tab.
 - If you rotate the Apps Script deployment URL, update `SCRIPT_URL` in `config.js` and redeploy.
 
+## Camera troubleshooting
+
+- The camera needs **HTTPS** (Vercel provides this) or `localhost`.
+- Accept the browser's camera permission prompt on first load.
+- If auto-start is blocked — common in iOS Safari — tap **📷 ক্যামেরা চালু করুন** under the scanner. That button counts as a user gesture and starts the camera reliably.
+- If the camera is busy in another app (Zoom, Teams, etc.), close it and tap the button again.
+- Use **⟳ ক্যামেরা বদল** if the front camera opens instead of the rear one.
+- The scanner library falls back to jsDelivr if unpkg is blocked on your network.
+
 ## Install as an app
 
 Open the deployed site in Chrome or Safari and choose **Add to Home Screen**. It runs full-screen without browser chrome.

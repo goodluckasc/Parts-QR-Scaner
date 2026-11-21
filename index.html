@@ -329,6 +329,7 @@
             <div id="cameraMsg" class="camera-msg hidden"></div>
           </div>
           <div class="camera-tools">
+            <button id="startCameraBtn" class="chip hidden">📷 ক্যামেরা চালু করুন</button>
             <button class="chip" data-action="pause">⏸ স্ক্যান থামানো</button>
             <button class="chip" data-action="camera">⟳ ক্যামেরা বদল</button>
           </div>
@@ -432,6 +433,11 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    if (!window.Html5Qrcode) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"><\/script>');
+    }
+  </script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

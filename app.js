@@ -20,6 +20,7 @@ const ui = {
   vibeToggle: byId("vibeToggle"),
   cameraMsg: byId("cameraMsg"),
   scanFrame: byId("scanFrame"),
+  startCameraBtn: byId("startCameraBtn"),
   historyList: byId("historyList"),
   emptyHistory: byId("emptyHistory"),
   searchInput: byId("searchInput"),
@@ -248,10 +249,30 @@ function onScan(text) {
 
 /* ---------- ক্যামেরা ---------- */
 
+let lastCameraError = null;
+
 function cameraError(message) {
   ui.cameraMsg.textContent = message;
   ui.cameraMsg.classList.remove("hidden");
   ui.scanFrame.classList.add("hidden");
+}
+
+function showCameraError(message) {
+  cameraError(message);
+  if (ui.startCameraBtn) ui.startCameraBtn.classList.remove("hidden");
+}
+
+function cameraErrorMessage(err) {
+  const name = err && err.name ? err.name : "";
+  if (!window.isSecureContext) return "ক্যামেরা চালু করতে HTTPS বা localhost দরকার।";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError")
+    return "ক্যামেরার অনুমতি দেওয়া হয়নি। ব্রাউজারের অনুমতি দিন, তারপর 'ক্যামেরা চালু' বাটন চাপুন।";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError")
+    return "কোনো ক্যামেরা পাওয়া যায়নি।";
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError")
+    return "ক্যামেরা ব্যস্ত আছে। অন্য অ্যাপ বন্ধ করে আবার চেষ্টা করুন।";
+  const detail = err && err.message ? " (" + err.message + ")" : "";
+  return "ক্যামেরা চালু করা যায়নি" + detail + "। নিচের বাটন চাপুন।";
 }
 
 function setPausedUI(value) {
@@ -260,60 +281,120 @@ function setPausedUI(value) {
   ui.scanFrame.classList.toggle("hidden", paused);
 }
 
-async function startScanner(deviceId) {
+function patchVideoForMobile() {
+  const video = document.querySelector("#reader video");
+  if (!video) return;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.muted = true;
+  video.autoplay = true;
   try {
-    if (scanner) {
-      try { await scanner.stop(); } catch (e) { /* ignore */ }
-      scanner = null;
+    const play = video.play();
+    if (play && typeof play.catch === "function") play.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+async function clearScanner() {
+  if (!scanner) return;
+  try { await scanner.stop(); } catch (e) { /* ignore */ }
+  try { if (typeof scanner.clear === "function") scanner.clear(); } catch (e) { /* ignore */ }
+  scanner = null;
+}
+
+async function startScanner(options) {
+  await clearScanner();
+  const attempts = [];
+  if (options && options.deviceId) attempts.push({ deviceId: { exact: options.deviceId } });
+  if (options && options.facingMode) attempts.push({ facingMode: options.facingMode });
+  attempts.push({ facingMode: "environment" }, { facingMode: "user" }, {});
+  const seen = new Set();
+  const configs = attempts.filter((c) => {
+    const key = JSON.stringify(c);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  let lastError = null;
+  for (const source of configs) {
+    try {
+      scanner = new Html5Qrcode("reader");
+      await scanner.start(
+        Object.assign({}, source, { fps: 10, qrbox: { width: 240, height: 240 } }),
+        onScan,
+        () => {}
+      );
+      patchVideoForMobile();
+      setPausedUI(false);
+      ui.cameraMsg.classList.add("hidden");
+      ui.scanFrame.classList.remove("hidden");
+      if (ui.startCameraBtn) ui.startCameraBtn.classList.add("hidden");
+      lastCameraError = null;
+      return true;
+    } catch (err) {
+      lastError = err;
+      await clearScanner();
     }
-    scanner = new Html5Qrcode("reader");
-    const source = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" };
-    await scanner.start(
-      Object.assign(source, { fps: 10, qrbox: { width: 240, height: 240 } }),
-      onScan,
-      () => {}
-    );
-    setPausedUI(false);
-    ui.cameraMsg.classList.add("hidden");
-    ui.scanFrame.classList.remove("hidden");
-  } catch (err) {
-    scanner = null;
-    cameraError("ক্যামেরা চালু করা যায়নি। অনুমতি দিন অথবা HTTPS-এ পেজটি খুলুন।");
   }
+  lastCameraError = lastError;
+  showCameraError(cameraErrorMessage(lastError));
+  return false;
+}
+
+async function refreshCameras() {
+  if (!window.Html5Qrcode) return [];
+  try {
+    cameras = (await Html5Qrcode.getCameras()) || [];
+  } catch (e) {
+    cameras = [];
+  }
+  return cameras;
+}
+
+function preferredCamera() {
+  return cameras.find((c) => /back|environment|rear|পেছন/i.test(c.label || "")) || cameras[0];
 }
 
 async function initScanner() {
   if (!window.Html5Qrcode) {
-    cameraError("স্ক্যানার লাইব্রেরি লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
+    showCameraError("স্ক্যানার লাইব্রেরি লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
     return;
   }
-  try {
-    cameras = await Html5Qrcode.getCameras();
-  } catch (e) {
-    cameras = [];
-  }
-  const preferred = cameras.find((c) => /back|environment|rear|পেছন/i.test(c.label || "")) || cameras[0];
+  await refreshCameras();
+  const preferred = preferredCamera();
   cameraIndex = preferred ? cameras.indexOf(preferred) : -1;
-  await startScanner(preferred ? preferred.id : null);
+  await startScanner(preferred
+    ? { deviceId: preferred.id, facingMode: "environment" }
+    : { facingMode: "environment" });
 }
 
+if (ui.startCameraBtn) ui.startCameraBtn.addEventListener("click", async () => {
+  ui.startCameraBtn.disabled = true;
+  ui.cameraMsg.textContent = "ক্যামেরা চালু হচ্ছে...";
+  await refreshCameras();
+  const preferred = preferredCamera();
+  await startScanner(preferred
+    ? { deviceId: preferred.id, facingMode: "environment" }
+    : { facingMode: "environment" });
+  ui.startCameraBtn.disabled = false;
+});
+
 all('[data-action="camera"]').forEach((btn) => btn.addEventListener("click", async () => {
-  try {
-    cameras = await Html5Qrcode.getCameras();
-  } catch (e) {
-    cameras = [];
-  }
+  await refreshCameras();
   if (cameras.length < 2) {
     toast("একটির বেশি ক্যামেরা পাওয়া যায়নি", "warn");
     return;
   }
   cameraIndex = (cameraIndex + 1) % cameras.length;
-  await startScanner(cameras[cameraIndex].id);
-  toast("ক্যামেরা বদল হয়েছে", "success");
+  const ok = await startScanner({ deviceId: cameras[cameraIndex].id, facingMode: "environment" });
+  if (ok) toast("ক্যামেরা বদল হয়েছে", "success");
 }));
 
 all('[data-action="pause"]').forEach((btn) => btn.addEventListener("click", async () => {
-  if (!scanner) return;
+  if (!scanner) {
+    showCameraError(lastCameraError ? cameraErrorMessage(lastCameraError) : "ক্যামেরা চালু নেই। নিচের বাটন চাপুন।");
+    return;
+  }
   try {
     if (paused) await scanner.resume();
     else await scanner.pause(true);
