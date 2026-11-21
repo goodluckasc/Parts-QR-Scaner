@@ -2,59 +2,28 @@
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#0a58ca">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>পার্স স্ক্যানার</title>
   <style>
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; overflow: hidden; }
-    body { font-family: sans-serif; background: #f4f4f4; text-align: center; display: flex; flex-direction: column; padding: env(safe-area-inset-top) 6px env(safe-area-inset-bottom); }
-    #topbar { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; flex: 0 0 auto; }
-    #topbar h2 { margin: 0; font-size: 17px; }
-    #count { font-size: 14px; margin: 0; }
-    #step { font-size: 17px; font-weight: bold; margin: 2px 0 4px; color: #0a58ca; flex: 0 0 auto; }
-    #readerWrap { flex: 0 0 auto; height: 34vh; max-height: 300px; margin: 0 auto; width: 100%; max-width: 420px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 10px; background: #000; }
-    #flashBtn { display: none; position: absolute; top: 8px; right: 8px; z-index: 5; padding: 8px 12px; font-size: 15px; background: rgba(0,0,0,0.6); border: 1px solid #fff; }
-    #reader { width: 100%; border: 0 !important; }
-    #reader video { width: 100% !important; height: 34vh !important; max-height: 300px; object-fit: cover; }
-    #codes { flex: 0 0 auto; display: flex; gap: 6px; margin: 6px 0 0; }
-    .box { flex: 1; background: #fff; border-radius: 8px; padding: 6px; font-size: 13px; word-break: break-all; }
-    #status { margin: 4px 0; min-height: 20px; font-size: 14px; flex: 0 0 auto; }
-    #buttons { flex: 0 0 auto; display: flex; gap: 6px; padding-bottom: 8px; }
-    #buttons button { flex: 1; }
-    #exportBar { flex: 0 0 auto; display: flex; gap: 6px; padding-bottom: 8px; }
-    #exportDate { flex: 1; min-width: 0; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
-    #exportBtn { flex: 1; background: #0a58ca; font-size: 16px; padding: 10px; }
-    button { padding: 14px 10px; font-size: 18px; border: 0; border-radius: 8px; background: #198754; color: #fff; }
-    button:disabled { background: #b5b5b5; }
-    button.secondary { background: #6c757d; font-size: 15px; padding: 14px 10px; }
+    body { font-family: sans-serif; margin: 0; padding: 12px; background: #f4f4f4; text-align: center; }
+    h2 { margin: 8px 0; }
+    #reader { width: 100%; max-width: 420px; margin: 0 auto; }
+    #step { font-size: 20px; font-weight: bold; margin: 12px 0; color: #0a58ca; }
+    #status { margin: 8px 0; min-height: 24px; }
+    .box { background: #fff; border-radius: 8px; padding: 8px; margin: 8px auto; max-width: 420px; word-break: break-all; }
+    #count { font-size: 18px; margin-top: 12px; }
+    button { padding: 10px 18px; font-size: 16px; border: 0; border-radius: 6px; background: #0a58ca; color: #fff; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <div id="topbar">
-    <h2>পার্স স্ক্যানার</h2>
-    <div id="count">সেভ হয়েছে: <span id="total">0</span></div>
-  </div>
+  <h2>পার্স স্ক্যানার</h2>
   <div id="step">ধাপ ১: পার্সের কোড স্ক্যান করুন</div>
-  <div id="readerWrap">
-    <div id="reader"></div>
-    <button id="flashBtn">🔦 ফ্ল্যাশ</button>
-  </div>
-  <div id="codes">
-    <div class="box">পার্স: <span id="purseVal">-</span></div>
-    <div class="box">ইউনিক: <span id="uniqueVal">-</span></div>
-  </div>
+  <div id="reader"></div>
+  <div class="box">পার্স কোড: <span id="purseVal">-</span></div>
+  <div class="box">ইউনিক কোড: <span id="uniqueVal">-</span></div>
   <div id="status"></div>
-  <div id="buttons">
-    <button id="saveBtn" disabled>সেভ করুন</button>
-    <button id="resetBtn" class="secondary">আবার শুরু</button>
-  </div>
-  <div id="exportBar">
-    <input type="date" id="exportDate">
-    <button id="exportBtn">এক্সপোর্ট</button>
-  </div>
+  <div id="count">আজ মোট সেভ হয়েছে: <span id="total">0</span></div>
+  <button id="resetBtn">ভুল হলে আবার শুরু করুন</button>
 
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="config.js"></script>
