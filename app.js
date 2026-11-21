@@ -10,6 +10,7 @@ const statusEl = document.getElementById("status");
 const purseEl = document.getElementById("purseVal");
 const uniqueEl = document.getElementById("uniqueVal");
 const totalEl = document.getElementById("total");
+const saveBtn = document.getElementById("saveBtn");
 
 function beep() {
   try {
@@ -28,11 +29,14 @@ function resetState() {
   uniqueCode = null;
   purseEl.textContent = "-";
   uniqueEl.textContent = "-";
+  saveBtn.disabled = true;
+  busy = false;
   stepEl.textContent = "ধাপ ১: পার্সের কোড স্ক্যান করুন";
 }
 
 async function saveRow() {
   busy = true;
+  saveBtn.disabled = true;
   statusEl.textContent = "সেভ হচ্ছে...";
   try {
     await fetch(SCRIPT_URL, {
@@ -45,12 +49,14 @@ async function saveRow() {
     totalEl.textContent = total;
     statusEl.textContent = "সেভ হয়েছে ✔";
   } catch (err) {
-    statusEl.textContent = "সেভ হয়নি, ইন্টারনেট দেখে আবার স্ক্যান করুন";
+    statusEl.textContent = "সেভ হয়নি, ইন্টারনেট দেখে আবার সেভ চাপুন";
+    saveBtn.disabled = false;
+    busy = false;
+    return;
   }
   setTimeout(() => {
     resetState();
     statusEl.textContent = "";
-    busy = false;
   }, 1200);
 }
 
@@ -70,8 +76,9 @@ function onScan(text) {
     if (text === purseCode) return;
     uniqueCode = text;
     uniqueEl.textContent = text;
+    stepEl.textContent = "কোড দুইটা ঠিক থাকলে সেভ করুন";
+    saveBtn.disabled = false;
     beep();
-    saveRow();
   }
 }
 
@@ -82,6 +89,10 @@ scanner.start(
   onScan
 ).catch(() => {
   statusEl.textContent = "ক্যামেরা চালু করা যায়নি, অনুমতি দিন";
+});
+
+saveBtn.addEventListener("click", () => {
+  if (purseCode && uniqueCode && !busy) saveRow();
 });
 
 document.getElementById("resetBtn").addEventListener("click", resetState);
